@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OLTP vs DW - Same Question, Different Systems</title>
+<style>
+  :root {
+    --teal:       #7A5230;
+    --orange:     #EB5600;
+    --pale:       #F5EDE0;
+    --steel:      #C4A882;
+    --near-black: #1A1A1A;
+    --dark-grey:  #595959;
+    --mint:       #F0DFC0;
+    --white:      #FFFFFF;
+    --green:      #2F9E5E;
+    --sand:       #F2E6D0;
+    --caramel:    #A07848;
+    --radius:     6px;
+    --mono:       'Courier New', Courier, monospace;
+    --sans:       'Segoe UI', system-ui, sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--pale);
+    color: var(--near-black);
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ─────────────────────────────────────────────────── */
+  .site-header {
+    background: var(--teal);
+    color: var(--white);
+    padding: 18px 32px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    border-bottom: 4px solid var(--orange);
+  }
+  .site-header .module-code {
+    font-size: 11px; font-weight: 700; letter-spacing: 1.5px;
+    opacity: 0.75; margin-bottom: 4px;
+  }
+  .site-header h1 {
+    font-size: 20px; font-weight: 700; line-height: 1.2;
+  }
+  .site-header .institution {
+    font-size: 11px; opacity: 0.65; text-align: right; line-height: 1.6;
+  }
+
+  /* ── QUESTION BANNER ─────────────────────────────────────────── */
+  .question-banner {
+    background: var(--sand);
+    border-left: 5px solid var(--caramel);
+    padding: 14px 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .question-banner .label {
+    font-size: 11px; font-weight: 700; letter-spacing: 1px;
+    color: var(--caramel); white-space: nowrap;
+  }
+  .question-banner .question {
+    font-size: 15px; font-weight: 600; color: var(--near-black);
+  }
+
+  /* ── TWO-PANEL LAYOUT ───────────────────────────────────────── */
+  .panels {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    border-top: 1px solid #D4C4AE;
+  }
+
+  .panel {
+    padding: 24px 28px;
+    border-right: 1px solid #D4C4AE;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .panel:last-child { border-right: none; }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid;
+  }
+  .panel-header.oltp { border-color: var(--teal); }
+  .panel-header.dw   { border-color: var(--orange); }
+
+  .panel-badge {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.8px;
+    padding: 3px 10px; border-radius: 3px; color: var(--white);
+  }
+  .panel-badge.oltp { background: var(--teal); }
+  .panel-badge.dw   { background: var(--orange); }
+
+  .panel-title { font-size: 14px; font-weight: 700; color: var(--near-black); }
+  .panel-sub   { font-size: 12px; color: var(--dark-grey); margin-left: auto; }
+
+  /* ── SCHEMA DIAGRAM ─────────────────────────────────────────── */
+  .schema { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
+
+  .db-table {
+    border: 1.5px solid #C8B89A;
+    border-radius: var(--radius);
+    overflow: hidden;
+    min-width: 120px;
+    flex: 1;
+    transition: box-shadow 0.3s, border-color 0.3s;
+    position: relative;
+  }
+  .db-table.highlight-scan {
+    border-color: var(--teal);
+    box-shadow: 0 0 0 2px var(--teal), 0 4px 16px rgba(122,82,48,0.25);
+  }
+  .db-table.highlight-join {
+    border-color: var(--orange);
+    box-shadow: 0 0 0 2px var(--orange), 0 4px 16px rgba(235,86,0,0.25);
+  }
+  .db-table.highlight-result {
+    border-color: var(--green);
+    box-shadow: 0 0 0 2px var(--green), 0 4px 16px rgba(47,158,94,0.20);
+  }
+
+  .db-table-header {
+    padding: 6px 10px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.4px;
+    color: var(--white); text-align: center;
+  }
+  .db-table-header.oltp-h { background: var(--teal); }
+  .db-table-header.dw-h   { background: var(--orange); }
+  .db-table-header.dim-h  { background: var(--steel); color: var(--near-black); }
+
+  .db-table-row {
+    padding: 3px 10px;
+    font-size: 10px; font-family: var(--mono);
+    color: var(--near-black);
+    border-top: 1px solid #E0D0BC;
+    display: flex; align-items: center; gap: 5px;
+    background: var(--white);
+  }
+  .db-table-row:nth-child(even) { background: #FBF6F0; }
+  .db-table-row .key-badge {
+    font-size: 9px; font-weight: 700; padding: 1px 4px;
+    border-radius: 2px; white-space: nowrap;
+  }
+  .key-badge.pk { background: var(--teal); color: var(--white); }
+  .key-badge.fk { background: var(--orange); color: var(--white); }
+
+  /* connectors between tables */
+  .schema-connector {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 0 2px; margin-top: 30px;
+    color: #C8B89A; font-size: 18px; font-weight: 300;
+    transition: color 0.3s;
+    flex-shrink: 0;
+  }
+  .schema-connector.active-join { color: var(--orange); }
+  .schema-connector .arrow { font-size: 20px; line-height: 1; }
+  .schema-connector .label {
+    font-size: 8px; font-weight: 700; letter-spacing: 0.5px;
+    color: var(--dark-grey); text-align: center; margin-top: 2px;
+    white-space: nowrap;
+  }
+
+  /* ── STEP COUNTER ───────────────────────────────────────────── */
+  .step-row {
+    display: flex; align-items: center; gap: 14px;
+  }
+  .step-counter {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .step-num {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 800;
+    transition: all 0.3s;
+    border: 2px solid #D4C4AE;
+    background: var(--white); color: var(--dark-grey);
+  }
+  .step-num.active-oltp { background: var(--teal); color: var(--white); border-color: var(--teal); }
+  .step-num.active-dw   { background: var(--orange); color: var(--white); border-color: var(--orange); }
+
+  .step-label { font-size: 12px; color: var(--dark-grey); }
+  .step-status {
+    font-size: 11px; font-weight: 600; color: var(--caramel);
+    min-height: 16px;
+    animation: fadeIn 0.3s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+
+  /* ── RUN BUTTON ─────────────────────────────────────────────── */
+  .btn-run {
+    padding: 9px 22px; font-size: 13px; font-weight: 700;
+    border: none; border-radius: var(--radius);
+    cursor: pointer; transition: all 0.2s; letter-spacing: 0.3px;
+  }
+  .btn-run.oltp { background: var(--teal); color: var(--white); }
+  .btn-run.oltp:hover:not(:disabled) { background: #6A4520; }
+  .btn-run.dw   { background: var(--orange); color: var(--white); }
+  .btn-run.dw:hover:not(:disabled)   { background: #CC4A00; }
+  .btn-run:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-reset {
+    padding: 9px 14px; font-size: 12px; font-weight: 600;
+    border: 1.5px solid #C8B89A; border-radius: var(--radius);
+    background: var(--white); color: var(--dark-grey);
+    cursor: pointer; transition: all 0.2s;
+  }
+  .btn-reset:hover { background: var(--pale); border-color: var(--teal); }
+
+  /* ── SQL BLOCK ──────────────────────────────────────────────── */
+  .sql-block {
+    background: #1A1A1A; border-radius: var(--radius);
+    padding: 12px 14px; overflow-x: auto;
+  }
+  .sql-block pre {
+    font-family: var(--mono); font-size: 10.5px; line-height: 1.65;
+    color: #F0DFC0; margin: 0;
+  }
+  .sql-kw   { color: #EB8C00; font-weight: 700; }   /* keywords */
+  .sql-fn   { color: #80CFCF; }                       /* functions */
+  .sql-str  { color: #9CE09C; }                       /* strings */
+  .sql-alias{ color: #C4A882; font-style: italic; }   /* aliases */
+  .sql-cmt  { color: #808080; }                       /* comments */
+
+  /* ── RESULT TABLE ───────────────────────────────────────────── */
+  .result-wrap {
+    overflow: hidden; max-height: 0;
+    transition: max-height 0.5s ease, opacity 0.4s ease;
+    opacity: 0;
+  }
+  .result-wrap.visible { max-height: 300px; opacity: 1; }
+
+  .result-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+    color: var(--green); margin-bottom: 6px;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .result-label::before { content: '✓'; font-size: 13px; }
+
+  .result-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .result-table th {
+    background: var(--teal); color: var(--white);
+    padding: 5px 10px; text-align: left; font-weight: 700;
+    font-size: 11px; letter-spacing: 0.3px;
+  }
+  .result-table td {
+    padding: 4px 10px; border-bottom: 1px solid #E0D0BC;
+    color: var(--near-black); background: var(--white);
+  }
+  .result-table tr:nth-child(even) td { background: #FBF6F0; }
+  .result-table td.num { text-align: right; font-weight: 700; color: var(--teal); }
+
+  /* ── IDENTICAL BADGE ────────────────────────────────────────── */
+  .identical-row {
+    display: none; /* shown via JS after both complete */
+    justify-content: center; padding: 10px 32px;
+    background: #E6F6EC; border-top: 2px solid var(--green);
+    border-bottom: 2px solid var(--green);
+    gap: 8px; align-items: center;
+  }
+  .identical-row.show { display: flex; }
+  .identical-row span {
+    font-size: 13px; font-weight: 700; color: var(--green);
+  }
+
+  /* ── BAR CHART SECTION ──────────────────────────────────────── */
+  .chart-section {
+    background: var(--white);
+    padding: 24px 32px;
+    border-top: 1px solid #D4C4AE;
+  }
+  .chart-title {
+    font-size: 14px; font-weight: 700; margin-bottom: 4px; color: var(--near-black);
+  }
+  .chart-subtitle {
+    font-size: 11px; color: var(--dark-grey); margin-bottom: 20px;
+    font-style: italic;
+  }
+  .bar-chart { display: flex; flex-direction: column; gap: 14px; }
+  .bar-row { display: flex; align-items: center; gap: 12px; }
+  .bar-label {
+    width: 180px; font-size: 12px; font-weight: 700;
+    color: var(--near-black); text-align: right; flex-shrink: 0;
+  }
+  .bar-track {
+    flex: 1; height: 32px; background: var(--pale);
+    border-radius: 4px; overflow: hidden; position: relative;
+  }
+  .bar-fill {
+    height: 100%; border-radius: 4px; display: flex; align-items: center;
+    padding-left: 10px;
+    transition: width 1.2s cubic-bezier(0.2, 0, 0.3, 1);
+    width: 0;
+  }
+  .bar-fill.oltp { background: var(--teal); }
+  .bar-fill.dw   { background: var(--orange); }
+  .bar-fill .bar-val {
+    font-size: 12px; font-weight: 800; color: var(--white); white-space: nowrap;
+  }
+
+  /* ── WHY CALLOUT ─────────────────────────────────────────────── */
+  .why-section {
+    padding: 22px 32px;
+    background: var(--sand);
+    border-top: 3px solid var(--caramel);
+  }
+  .why-eyebrow {
+    font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+    color: var(--caramel); margin-bottom: 8px;
+  }
+  .why-title {
+    font-size: 16px; font-weight: 700; color: var(--near-black);
+    margin-bottom: 14px;
+  }
+  .why-points { display: flex; gap: 20px; flex-wrap: wrap; }
+  .why-point {
+    flex: 1; min-width: 200px;
+    background: var(--white); border-radius: var(--radius);
+    padding: 14px 16px;
+    border-top: 3px solid var(--teal);
+  }
+  .why-point:nth-child(2) { border-top-color: var(--orange); }
+  .why-point:nth-child(3) { border-top-color: var(--green); }
+  .why-point h4 { font-size: 12px; font-weight: 700; color: var(--near-black); margin-bottom: 5px; }
+  .why-point p  { font-size: 12px; color: var(--dark-grey); line-height: 1.5; }
+
+  .footer-note {
+    text-align: center; padding: 14px 32px;
+    font-size: 11px; color: var(--dark-grey);
+    border-top: 1px solid #D4C4AE; background: var(--pale);
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="site-header">
+  <div>
+    <div class="module-code">DATA WAREHOUSING AND BUSINESS INTELLIGENCE</div>
+    <h1>OLTP vs Data Warehouse - Same Question, Different Systems</h1>
+  </div>
+  <div class="institution">
+    NIBM / Coventry University<br>
+    Day 1 · Lab Companion
+  </div>
+</header>
+
+<!-- BUSINESS QUESTION -->
+<div class="question-banner">
+  <span class="label">BUSINESS QUESTION</span>
+  <span class="question">"How many students enrolled in each course this semester?"</span>
+</div>
+
+<!-- PANELS -->
+<div class="panels">
+
+  <!-- ══════════════ LEFT - OLTP ══════════════ -->
+  <div class="panel">
+    <div class="panel-header oltp">
+      <span class="panel-badge oltp">OLTP</span>
+      <span class="panel-title">Operational Database Path</span>
+      <span class="panel-sub">PostgreSQL · 3 tables</span>
+    </div>
+
+    <!-- Schema diagram -->
+    <div class="schema">
+      <!-- enrollments (centre / primary) -->
+      <div class="db-table" id="tbl-enroll">
+        <div class="db-table-header oltp-h">enrollments</div>
+        <div class="db-table-row"><span class="key-badge pk">PK</span>enrollment_id</div>
+        <div class="db-table-row"><span class="key-badge fk">FK</span>student_id</div>
+        <div class="db-table-row"><span class="key-badge fk">FK</span>course_id</div>
+        <div class="db-table-row">&nbsp;&nbsp;&nbsp;enrollment_date</div>
+        <div class="db-table-row">&nbsp;&nbsp;&nbsp;grade</div>
+        <div class="db-table-row">&nbsp;&nbsp;&nbsp;semester</div>
+        <div class="db-table-row">&nbsp;&nbsp;&nbsp;academic_year</div>
+      </div>
+
+      <div class="schema-connector" id="con-students">
+        <div class="arrow">⟵</div>
+        <div class="label">student_id</div>
+      </div>
+
+      <div class="db-table" id="tbl-students">
+        <div class="db-table-header oltp-h">students</div>
+        <div class="db-table-row"><span class="key-badge pk">PK</span>student_id</div>
+        <div class="db-table-row">&nbsp;&nbsp;&nbsp;first_name</div>
+        <div class="db-table-row">&nbsp;&nbsp;&nbsp;last_name</div>
+        <div class="db-table-row">&nbsp;&nbsp;&nbsp;email</div>
+        <div class="db-table-row">&nbsp;&nbsp;&nbsp;nationality</div>
+      </div>
+
+      <div class="schema-connector" id="con-courses">
+        <div class="arrow">⟶</div>
+        <div class="label">course_id</div>
+      </div>
+
+      <div class="db-table" id="tbl-courses">
+        <div class="db-table-header oltp-h">courses</div>
+        <div class="db-table-row"><span class="key-badge pk">PK</span>course_id</div>
+        <div class="db-table-row">&nbsp;&nbsp;&nbsp;course_name</div>
+        <div class="db-table-row">&nbsp;&nbsp;&nbsp;department</div>
+        <div class="db-table-row">&nbsp;&nbsp;&nbsp;credits</div>
+        <div class="db-table-row">&nbsp;&nbsp;&nbsp;level</div>
+      </div>
+    </div>
+
+    <!-- Step counter -->
+    <div class="step-row">
+      <div class="step-counter">
+        <div class="step-num" id="oltp-step">0</div>
+        <div>
+          <div class="step-label">Operations</div>
+          <div class="step-status" id="oltp-status">Click Run Query to begin</div>
+        </div>
+      </div>
+      <button class="btn-run oltp" id="btn-oltp" onclick="runOLTP()">▶ Run Query</button>
+      <button class="btn-reset" onclick="resetOLTP()">↺</button>
+    </div>
+
+    <!-- SQL -->
+    <div class="sql-block">
+<pre><span class="sql-kw">SELECT</span> <span class="sql-alias">c</span>.course_name,
+       <span class="sql-fn">COUNT</span>(<span class="sql-alias">e</span>.enrollment_id) <span class="sql-kw">AS</span> enrolled_count
+<span class="sql-kw">FROM</span>   enrollments <span class="sql-alias">e</span>
+<span class="sql-kw">JOIN</span>   students  <span class="sql-alias">s</span>  <span class="sql-kw">ON</span> <span class="sql-alias">e</span>.student_id = <span class="sql-alias">s</span>.student_id
+<span class="sql-kw">JOIN</span>   courses   <span class="sql-alias">c</span>  <span class="sql-kw">ON</span> <span class="sql-alias">e</span>.course_id  = <span class="sql-alias">c</span>.course_id
+<span class="sql-kw">WHERE</span>  <span class="sql-alias">e</span>.semester      = <span class="sql-str">'Semester 1'</span>
+  <span class="sql-kw">AND</span>  <span class="sql-alias">e</span>.academic_year = <span class="sql-str">'2024'</span>
+<span class="sql-kw">GROUP BY</span> <span class="sql-alias">c</span>.course_name
+<span class="sql-kw">ORDER BY</span> enrolled_count <span class="sql-kw">DESC</span>;</pre>
+    </div>
+
+    <!-- Result -->
+    <div class="result-wrap" id="oltp-result">
+      <div class="result-label">Result - 2,000ms query time (illustrative)</div>
+      <table class="result-table">
+        <thead><tr><th>course_name</th><th>enrolled_count</th></tr></thead>
+        <tbody>
+          <tr><td>Database Systems</td><td class="num">45</td></tr>
+          <tr><td>Web Development</td><td class="num">38</td></tr>
+          <tr><td>Data Science</td><td class="num">32</td></tr>
+          <tr><td>Networking</td><td class="num">28</td></tr>
+          <tr><td>Software Engineering</td><td class="num">22</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div><!-- /panel OLTP -->
+
+  <!-- ══════════════ RIGHT - DW ══════════════ -->
+  <div class="panel">
+    <div class="panel-header dw">
+      <span class="panel-badge dw">DATA WAREHOUSE</span>
+      <span class="panel-title">Star Schema Path</span>
+      <span class="panel-sub">PostgreSQL · star schema</span>
+    </div>
+
+    <!-- Star schema diagram -->
+    <div class="schema" style="flex-direction:column; gap:8px;">
+
+      <!-- Top row: dim_student | fact | dim_course -->
+      <div style="display:flex; gap:10px; align-items:flex-start;">
+        <div class="db-table" id="tbl-dim-student" style="flex:0.9;">
+          <div class="db-table-header dim-h">dim_student</div>
+          <div class="db-table-row"><span class="key-badge pk">PK</span>student_key</div>
+          <div class="db-table-row">&nbsp;&nbsp;&nbsp;student_id</div>
+          <div class="db-table-row">&nbsp;&nbsp;&nbsp;full_name</div>
+          <div class="db-table-row">&nbsp;&nbsp;&nbsp;nationality</div>
+        </div>
+
+        <div class="schema-connector" id="con-dw-student" style="margin-top:28px;">
+          <div class="arrow">⟵</div>
+          <div class="label">student_key</div>
+        </div>
+
+        <div class="db-table" id="tbl-fact" style="flex:1.2;">
+          <div class="db-table-header dw-h">fact_enrollment</div>
+          <div class="db-table-row"><span class="key-badge pk">PK</span>enrollment_key</div>
+          <div class="db-table-row"><span class="key-badge fk">FK</span>student_key</div>
+          <div class="db-table-row"><span class="key-badge fk">FK</span>course_key</div>
+          <div class="db-table-row"><span class="key-badge fk">FK</span>date_key</div>
+          <div class="db-table-row">&nbsp;&nbsp;&nbsp;grade</div>
+          <div class="db-table-row">&nbsp;&nbsp;&nbsp;semester</div>
+        </div>
+
+        <div class="schema-connector" id="con-dw-course" style="margin-top:28px;">
+          <div class="arrow">⟶</div>
+          <div class="label">course_key</div>
+        </div>
+
+        <div class="db-table" id="tbl-dim-course" style="flex:0.9;">
+          <div class="db-table-header dim-h">dim_course</div>
+          <div class="db-table-row"><span class="key-badge pk">PK</span>course_key</div>
+          <div class="db-table-row">&nbsp;&nbsp;&nbsp;course_name</div>
+          <div class="db-table-row">&nbsp;&nbsp;&nbsp;department</div>
+          <div class="db-table-row">&nbsp;&nbsp;&nbsp;credits</div>
+        </div>
+      </div>
+
+      <!-- Bottom row: dim_date below fact -->
+      <div style="display:flex; justify-content:center; margin-top:2px;">
+        <div style="display:flex; flex-direction:column; align-items:center; gap:0;">
+          <div class="schema-connector" id="con-dw-date" style="margin-top:0; flex-direction:row; gap:5px; padding:3px 0;">
+            <div class="arrow" style="transform:rotate(90deg); display:inline-block;">⟶</div>
+            <div class="label">date_key</div>
+          </div>
+          <div class="db-table" id="tbl-dim-date" style="max-width:300px;">
+            <div class="db-table-header dim-h">dim_date</div>
+            <div class="db-table-row"><span class="key-badge pk">PK</span>date_key &nbsp;·&nbsp; full_date &nbsp;·&nbsp; semester &nbsp;·&nbsp; academic_year</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step counter -->
+    <div class="step-row">
+      <div class="step-counter">
+        <div class="step-num" id="dw-step">0</div>
+        <div>
+          <div class="step-label">Operations</div>
+          <div class="step-status" id="dw-status">Click Run Query to begin</div>
+        </div>
+      </div>
+      <button class="btn-run dw" id="btn-dw" onclick="runDW()">▶ Run Query</button>
+      <button class="btn-reset" onclick="resetDW()">↺</button>
+    </div>
+
+    <!-- SQL -->
+    <div class="sql-block">
+<pre><span class="sql-kw">SELECT</span> <span class="sql-alias">dc</span>.course_name,
+       <span class="sql-fn">COUNT</span>(<span class="sql-alias">fe</span>.enrollment_key) <span class="sql-kw">AS</span> enrolled_count
+<span class="sql-kw">FROM</span>   fact_enrollment <span class="sql-alias">fe</span>
+<span class="sql-kw">JOIN</span>   dim_course <span class="sql-alias">dc</span> <span class="sql-kw">ON</span> <span class="sql-alias">fe</span>.course_key = <span class="sql-alias">dc</span>.course_key
+<span class="sql-kw">JOIN</span>   dim_date   <span class="sql-alias">dd</span> <span class="sql-kw">ON</span> <span class="sql-alias">fe</span>.date_key   = <span class="sql-alias">dd</span>.date_key
+<span class="sql-kw">WHERE</span>  <span class="sql-alias">dd</span>.semester      = <span class="sql-str">'Semester 1'</span>
+  <span class="sql-kw">AND</span>  <span class="sql-alias">dd</span>.academic_year = <span class="sql-str">'2024'</span>
+<span class="sql-kw">GROUP BY</span> <span class="sql-alias">dc</span>.course_name
+<span class="sql-kw">ORDER BY</span> enrolled_count <span class="sql-kw">DESC</span>;</pre>
+    </div>
+
+    <!-- Result -->
+    <div class="result-wrap" id="dw-result">
+      <div class="result-label">Result - 400ms query time (illustrative)</div>
+      <table class="result-table">
+        <thead><tr><th>course_name</th><th>enrolled_count</th></tr></thead>
+        <tbody>
+          <tr><td>Database Systems</td><td class="num">45</td></tr>
+          <tr><td>Web Development</td><td class="num">38</td></tr>
+          <tr><td>Data Science</td><td class="num">32</td></tr>
+          <tr><td>Networking</td><td class="num">28</td></tr>
+          <tr><td>Software Engineering</td><td class="num">22</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div><!-- /panel DW -->
+
+</div><!-- /panels -->
+
+<!-- IDENTICAL RESULTS BADGE -->
+<div class="identical-row" id="identical-badge">
+  <span>✓ Both queries return identical results - same data, different architectural path</span>
+</div>
+
+<!-- BAR CHART -->
+<div class="chart-section">
+  <div class="chart-title">Illustrative Operation Count Comparison</div>
+  <div class="chart-subtitle">Not a real benchmark - illustrates the structural difference in query complexity</div>
+  <div class="bar-chart">
+    <div class="bar-row">
+      <div class="bar-label">OLTP (3 tables, 2 JOINs)</div>
+      <div class="bar-track">
+        <div class="bar-fill oltp" id="bar-oltp" style="width:0%">
+          <span class="bar-val" id="bar-oltp-val"></span>
+        </div>
+      </div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Data Warehouse (star schema)</div>
+      <div class="bar-track">
+        <div class="bar-fill dw" id="bar-dw" style="width:0%">
+          <span class="bar-val" id="bar-dw-val"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- WHY DOES THIS MATTER -->
+<div class="why-section">
+  <div class="why-eyebrow">WHY DOES THIS MATTER?</div>
+  <div class="why-title">The schema design shapes the query, not the database engine</div>
+  <div class="why-points">
+    <div class="why-point">
+      <h4>Same result, different work</h4>
+      <p>Both queries return identical rows. The difference is not in what they answer - it is in how many tables the database must traverse and JOIN to get there.</p>
+    </div>
+    <div class="why-point">
+      <h4>Scale amplifies the gap</h4>
+      <p>With 500 students this difference is invisible. With 50,000 students across ten years, the OLTP JOINs touch billions of row combinations. The warehouse star schema avoids this by pre-organising the data for analytical access.</p>
+    </div>
+    <div class="why-point">
+      <h4>The warehouse protects OLTP</h4>
+      <p>Running heavy analytical queries directly on the OLTP system slows down the operational system for everyone using it. The warehouse gives analysts a separate, purpose-built system that does not compete with day-to-day operations.</p>
+    </div>
+  </div>
+</div>
+
+<div class="footer-note">
+  Data Warehousing and Business Intelligence · NIBM / Coventry University ·
+  Query times shown are illustrative only and not derived from actual benchmarks
+</div>
+
+<script>
+// ── STATE ────────────────────────────────────────────────────────
+let oltpDone = false, dwDone = false;
+let oltpAnimating = false, dwAnimating = false;
+
+// ── OLTP ANIMATION ───────────────────────────────────────────────
+function runOLTP() {
+  if (oltpAnimating) return;
+  oltpAnimating = true;
+  document.getElementById('btn-oltp').disabled = true;
+  resetOLTPVisuals();
+
+  const setStep = (n, msg) => {
+    document.getElementById('oltp-step').textContent = n;
+    document.getElementById('oltp-step').className = 'step-num active-oltp';
+    document.getElementById('oltp-status').textContent = msg;
+  };
+
+  // Step 1: Scan enrollments (300ms)
+  setTimeout(() => {
+    setStep(1, 'Scanning enrollments table…');
+    document.getElementById('tbl-enroll').classList.add('highlight-scan');
+  }, 300);
+
+  // Step 2: JOIN to students (900ms)
+  setTimeout(() => {
+    setStep(2, 'JOIN → students (match student_id)');
+    document.getElementById('con-students').classList.add('active-join');
+    document.getElementById('tbl-students').classList.add('highlight-join');
+  }, 900);
+
+  // Step 3: JOIN to courses (1500ms)
+  setTimeout(() => {
+    setStep(3, 'JOIN → courses (match course_id)');
+    document.getElementById('con-courses').classList.add('active-join');
+    document.getElementById('tbl-courses').classList.add('highlight-join');
+  }, 1500);
+
+  // Step 4: Aggregate (1800ms)
+  setTimeout(() => {
+    setStep(4, 'GROUP BY course_name, COUNT rows…');
+    document.getElementById('tbl-enroll').classList.add('highlight-result');
+  }, 1800);
+
+  // Result (2000ms)
+  setTimeout(() => {
+    document.getElementById('oltp-status').textContent = '✓ Complete - 2,000ms elapsed';
+    document.getElementById('oltp-result').classList.add('visible');
+    oltpDone = true;
+    oltpAnimating = false;
+    document.getElementById('btn-oltp').disabled = false;
+    checkBothDone();
+  }, 2000);
+}
+
+function resetOLTP() {
+  if (oltpAnimating) return;
+  resetOLTPVisuals();
+  document.getElementById('oltp-step').textContent = '0';
+  document.getElementById('oltp-step').className = 'step-num';
+  document.getElementById('oltp-status').textContent = 'Click Run Query to begin';
+  document.getElementById('oltp-result').classList.remove('visible');
+  document.getElementById('btn-oltp').disabled = false;
+  oltpDone = false;
+  checkBothDone();
+}
+
+function resetOLTPVisuals() {
+  ['tbl-enroll','tbl-students','tbl-courses'].forEach(id => {
+    document.getElementById(id).className = 'db-table';
+  });
+  ['con-students','con-courses'].forEach(id => {
+    document.getElementById(id).classList.remove('active-join');
+  });
+}
+
+// ── DW ANIMATION ─────────────────────────────────────────────────
+function runDW() {
+  if (dwAnimating) return;
+  dwAnimating = true;
+  document.getElementById('btn-dw').disabled = true;
+  resetDWVisuals();
+
+  const setStep = (n, msg) => {
+    document.getElementById('dw-step').textContent = n;
+    document.getElementById('dw-step').className = 'step-num active-dw';
+    document.getElementById('dw-status').textContent = msg;
+  };
+
+  // Step 1: Scan fact (100ms)
+  setTimeout(() => {
+    setStep(1, 'Scanning fact_enrollment (pre-keyed integers)…');
+    document.getElementById('tbl-fact').classList.add('highlight-scan');
+    document.getElementById('tbl-dim-date').classList.add('highlight-join');
+    document.getElementById('con-dw-date').classList.add('active-join');
+  }, 100);
+
+  // Step 2: JOIN dim_course (250ms)
+  setTimeout(() => {
+    setStep(2, 'JOIN dim_course · filter dim_date inline');
+    document.getElementById('con-dw-course').classList.add('active-join');
+    document.getElementById('tbl-dim-course').classList.add('highlight-join');
+  }, 250);
+
+  // Result (400ms)
+  setTimeout(() => {
+    document.getElementById('dw-status').textContent = '✓ Complete - 400ms elapsed';
+    document.getElementById('tbl-fact').classList.add('highlight-result');
+    document.getElementById('dw-result').classList.add('visible');
+    dwDone = true;
+    dwAnimating = false;
+    document.getElementById('btn-dw').disabled = false;
+    checkBothDone();
+  }, 400);
+}
+
+function resetDW() {
+  if (dwAnimating) return;
+  resetDWVisuals();
+  document.getElementById('dw-step').textContent = '0';
+  document.getElementById('dw-step').className = 'step-num';
+  document.getElementById('dw-status').textContent = 'Click Run Query to begin';
+  document.getElementById('dw-result').classList.remove('visible');
+  document.getElementById('btn-dw').disabled = false;
+  dwDone = false;
+  checkBothDone();
+}
+
+function resetDWVisuals() {
+  ['tbl-fact','tbl-dim-student','tbl-dim-course','tbl-dim-date'].forEach(id => {
+    document.getElementById(id).className = 'db-table';
+  });
+  ['con-dw-student','con-dw-course','con-dw-date'].forEach(id => {
+    document.getElementById(id).classList.remove('active-join');
+  });
+}
+
+// ── BOTH DONE ────────────────────────────────────────────────────
+function checkBothDone() {
+  const badge = document.getElementById('identical-badge');
+  if (oltpDone && dwDone) {
+    badge.classList.add('show');
+    animateBarChart();
+  } else {
+    badge.classList.remove('show');
+    document.getElementById('bar-oltp').style.width = '0%';
+    document.getElementById('bar-oltp-val').textContent = '';
+    document.getElementById('bar-dw').style.width = '0%';
+    document.getElementById('bar-dw-val').textContent = '';
+  }
+}
+
+function animateBarChart() {
+  // OLTP: 4 operations; DW: 2 operations. Scale: OLTP = 85%, DW = 40%
+  setTimeout(() => {
+    document.getElementById('bar-oltp').style.width = '85%';
+    document.getElementById('bar-oltp-val').textContent = '4 operations';
+    document.getElementById('bar-dw').style.width = '40%';
+    document.getElementById('bar-dw-val').textContent = '2 operations';
+  }, 200);
+}
+</script>
+
+</body>
+</html>

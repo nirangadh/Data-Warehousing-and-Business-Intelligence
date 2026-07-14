@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DWBI Day 2 - Star Schema Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F5EDE0;
+    --primary: #7A5230;
+    --accent: #EB5600;
+    --text: #1A1A1A;
+    --panel: #C4A882;
+    --white: #FFFFFF;
+    --sky: #F2E6D0;
+    --sky-accent: #A07848;
+    --dark-grey: #595959;
+    --code-bg: #2B2320;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Open Sans', system-ui, -apple-system, sans-serif;
+  }
+  .wrap {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 20px 24px 48px;
+  }
+
+  /* ---------- Title bar ---------- */
+  header.titlebar {
+    display: flex; align-items: baseline; justify-content: space-between;
+    flex-wrap: wrap; gap: 8px;
+    border-bottom: 3px solid var(--primary);
+    padding-bottom: 10px; margin-bottom: 6px;
+  }
+  header.titlebar .module {
+    font-size: 15px; font-weight: 700; color: var(--primary);
+    letter-spacing: 0.03em; text-transform: uppercase;
+  }
+  header.titlebar h1 {
+    font-size: 26px; margin: 2px 0 0; color: var(--text); font-weight: 800;
+  }
+  header.titlebar .daytag {
+    background: var(--accent); color: var(--white); font-weight: 700;
+    font-size: 13px; padding: 4px 10px; border-radius: 3px; align-self: center;
+  }
+
+  .howto {
+    background: var(--sky); border-left: 4px solid var(--sky-accent);
+    padding: 10px 14px; margin: 14px 0 18px; font-size: 13.5px; color: var(--text);
+    border-radius: 0 4px 4px 0;
+  }
+  .howto strong { color: var(--sky-accent); }
+
+  /* ---------- Toggle ---------- */
+  .toggle-row {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    background: var(--white); border: 1px solid #DDD3C2; border-radius: 8px;
+    padding: 12px 16px; margin-bottom: 16px;
+  }
+  .toggle-label { font-weight: 700; font-size: 14px; }
+  .toggle-label.active-star { color: var(--primary); }
+  .toggle-label.active-snow { color: var(--accent); }
+  .switch {
+    position: relative; width: 56px; height: 30px; background: var(--panel);
+    border-radius: 15px; cursor: pointer; border: none; padding: 0; flex-shrink: 0;
+  }
+  .switch .knob {
+    position: absolute; top: 3px; left: 3px; width: 24px; height: 24px;
+    background: var(--white); border-radius: 50%; transition: left 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+  .switch[aria-checked="true"] .knob { left: 29px; }
+  .switch[aria-checked="true"] { background: var(--accent); }
+
+  .readout {
+    margin-left: auto; font-size: 13.5px; background: var(--bg);
+    border: 1px dashed var(--primary); border-radius: 6px; padding: 8px 12px;
+    font-family: 'Courier New', monospace; min-width: 300px;
+  }
+  .readout .q { color: var(--dark-grey); display: block; margin-bottom: 3px; font-family: 'Open Sans', sans-serif; font-style: italic; }
+  .readout .joins { font-weight: 700; }
+  .readout .joins.star { color: var(--primary); }
+  .readout .joins.snow { color: var(--accent); }
+
+  /* ---------- Layout: canvas + side panel ---------- */
+  .stage {
+    display: grid; grid-template-columns: 1fr 340px; gap: 18px;
+  }
+  @media (max-width: 860px) {
+    .stage { grid-template-columns: 1fr; }
+  }
+  .canvas-card {
+    background: var(--white); border: 1px solid #DDD3C2; border-radius: 8px;
+    padding: 10px; min-height: 420px; position: relative;
+  }
+  svg#schema { width: 100%; height: 420px; display: block; }
+
+  .node rect, .node ellipse { cursor: pointer; transition: filter 0.15s ease, transform 0.15s ease; }
+  .node:hover rect, .node:hover ellipse { filter: brightness(1.08); }
+  .node.selected rect, .node.selected ellipse { stroke: var(--text); stroke-width: 3; }
+  .node text { pointer-events: none; font-family: 'Open Sans', sans-serif; }
+  .fk-label { font-size: 11px; font-style: italic; fill: var(--dark-grey); font-family: 'Open Sans', sans-serif; }
+  .link { stroke: var(--panel); stroke-width: 2; }
+  .link.snow { stroke: var(--accent); stroke-dasharray: 6 4; }
+
+  /* ---------- Side panel ---------- */
+  .panel {
+    background: var(--white); border: 1px solid #DDD3C2; border-radius: 8px;
+    padding: 16px; min-height: 420px;
+  }
+  .panel h2 { font-size: 17px; margin: 0 0 2px; color: var(--text); }
+  .panel .role-badge {
+    display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+    padding: 2px 8px; border-radius: 3px; margin-bottom: 10px; text-transform: uppercase;
+  }
+  .panel .role-badge.fact { background: var(--accent); color: var(--white); }
+  .panel .role-badge.dim { background: var(--panel); color: var(--text); }
+  .panel .grain-line {
+    background: var(--sky); border-left: 3px solid var(--sky-accent);
+    padding: 8px 10px; font-size: 13px; margin-bottom: 12px; border-radius: 0 4px 4px 0;
+  }
+  .panel table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin-bottom: 12px; }
+  .panel th { background: var(--primary); color: var(--white); text-align: left; padding: 4px 6px; font-size: 11px; }
+  .panel td { padding: 4px 6px; border-bottom: 1px solid #EEE4D4; font-family: 'Courier New', monospace; font-size: 11px; }
+  .panel .col-type { color: var(--dark-grey); }
+  .panel .sample-title, .panel .fk-title, .panel .col-title { font-size: 12.5px; font-weight: 700; color: var(--primary); margin: 10px 0 4px; }
+  .panel .fk-line { font-size: 12.5px; font-family: 'Courier New', monospace; background: var(--bg); padding: 6px 8px; border-radius: 4px; }
+  .panel .empty-state { color: var(--dark-grey); font-size: 13.5px; padding-top: 40px; text-align: center; }
+
+  /* ---------- Grain spotlight strip ---------- */
+  .grain-strip {
+    margin-top: 16px; background: var(--primary); color: var(--white);
+    border-radius: 8px; padding: 12px 18px; font-size: 14px; display: flex;
+    align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .grain-strip .tag { font-weight: 800; font-size: 11px; letter-spacing: 0.05em; background: var(--accent); padding: 2px 8px; border-radius: 3px; text-transform: uppercase; }
+
+  /* ---------- Why it matters ---------- */
+  .why {
+    margin-top: 16px; background: var(--white); border: 1px solid #DDD3C2;
+    border-radius: 8px; padding: 14px 18px; font-size: 14px; line-height: 1.5;
+  }
+  .why strong { color: var(--primary); }
+
+  footer.foot { text-align: center; font-size: 11.5px; color: var(--dark-grey); margin-top: 26px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="titlebar">
+    <div>
+      <div class="module">Data Warehousing and Business Intelligence</div>
+      <h1>Star Schema Explorer</h1>
+    </div>
+    <span class="daytag">D2 - Dimensional Modelling</span>
+  </header>
+
+  <div class="howto">
+    <strong>How to use:</strong> click any table to see its columns and sample rows on the right. Use the toggle below to switch the course dimension between Star and Snowflake, and watch the join count change for the same business question.
+  </div>
+
+  <div class="toggle-row">
+    <span class="toggle-label active-star" id="labelStar">Star</span>
+    <button class="switch" id="modeSwitch" role="switch" aria-checked="false" aria-label="Toggle between star and snowflake schema">
+      <span class="knob"></span>
+    </button>
+    <span class="toggle-label" id="labelSnow">Snowflake</span>
+    <div class="readout">
+      <span class="q">Query: enrollments per department</span>
+      <span class="joins star" id="joinReadout">1 join&nbsp; (fact_enrollment &rarr; dim_course)</span>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="canvas-card">
+      <svg id="schema" viewBox="0 0 640 420" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+    <div class="panel" id="panel">
+      <div class="empty-state">Click a table on the left to inspect it - role, grain, columns, and sample rows.</div>
+    </div>
+  </div>
+
+  <div class="grain-strip">
+    <span class="tag">Grain spotlight</span>
+    <span>One row in fact_enrollment represents one student enrolled in one course during one academic term.</span>
+  </div>
+
+  <div class="why">
+    <strong>Why does this matter?</strong> The warehouse is read-heavy and write-rare: analysts query it constantly, but it is only loaded in batches. We accept redundancy (department repeated on every course row, in Star mode) in exchange for simpler, faster reads - that trade only makes sense because updates are rare.
+  </div>
+
+  <footer class="foot">Data Warehousing and Business Intelligence - NIBM / Coventry University - Niranga Dharmaratna</footer>
+</div>
+
+<script>
+// ============================================================
+// Data model - matches the Day 2 seed dataset exactly (see
+// d2_student_notes.md and the DDL slides in d2_B_lab.pptx).
+// ============================================================
+const TABLES = {
+  fact_enrollment: {
+    role: 'FACT',
+    grain: 'One row in fact_enrollment represents one student enrolled in one course during one academic term.',
+    columns: [
+      ['enrollment_key', 'SERIAL PK'],
+      ['student_key', 'INTEGER FK -> dim_student'],
+      ['course_key', 'INTEGER FK -> dim_course'],
+      ['date_key', 'INTEGER FK -> dim_date'],
+      ['grade', 'VARCHAR(2)'],
+      ['enrollment_count', 'INTEGER (additive)']
+    ],
+    sampleCols: ['enrollment_key', 'student_key', 'course_key', 'date_key', 'grade', 'enrollment_count'],
+    sample: [
+      [1, 1, 1, 1, 'A', 1],
+      [2, 2, 2, 1, 'B', 1],
+      [3, 3, 1, 1, 'B', 1]
+    ],
+    fks: [
+      'fact_enrollment.student_key -> dim_student.student_key',
+      'fact_enrollment.course_key -> dim_course.course_key',
+      'fact_enrollment.date_key -> dim_date.date_key'
+    ]
+  },
+  dim_student: {
+    role: 'DIMENSION',
+    describes: 'Who enrolled - the student.',
+    columns: [
+      ['student_key', 'SERIAL PK'],
+      ['student_id', 'INTEGER (natural key)'],
+      ['first_name', 'VARCHAR(50)'],
+      ['last_name', 'VARCHAR(50)'],
+      ['email', 'VARCHAR(120)'],
+      ['date_of_birth', 'DATE'],
+      ['nationality', 'VARCHAR(50)']
+    ],
+    sampleCols: ['student_key', 'student_id', 'first_name', 'last_name'],
+    sample: [
+      [1, 1001, 'Amara', 'Perera'],
+      [2, 1002, 'Dilan', 'Fernando'],
+      [3, 1003, 'Nethmi', 'Silva']
+    ],
+    fks: ['fact_enrollment.student_key -> dim_student.student_key']
+  },
+  dim_date: {
+    role: 'DIMENSION',
+    describes: 'When it happened - the academic term.',
+    columns: [
+      ['date_key', 'SERIAL PK'],
+      ['full_date', 'DATE'],
+      ['semester', 'VARCHAR(20)'],
+      ['academic_year', 'VARCHAR(9)'],
+      ['month', 'INTEGER'],
+      ['year', 'INTEGER'],
+      ['quarter', 'INTEGER']
+    ],
+    sampleCols: ['date_key', 'full_date', 'semester', 'academic_year'],
+    sample: [
+      [1, '2023-09-01', 'Semester 1', '2023/2024'],
+      [2, '2024-02-01', 'Semester 2', '2023/2024'],
+      [3, '2024-09-01', 'Semester 1', '2024/2025']
+    ],
+    fks: ['fact_enrollment.date_key -> dim_date.date_key']
+  },
+  dim_course_star: {
+    key: 'dim_course', role: 'DIMENSION',
+    describes: 'What was studied - the course (Star: department stored directly on the row).',
+    columns: [
+      ['course_key', 'SERIAL PK'],
+      ['course_id', 'INTEGER (natural key)'],
+      ['course_name', 'VARCHAR(120)'],
+      ['department', 'VARCHAR(80)'],
+      ['credits', 'INTEGER'],
+      ['level', 'VARCHAR(20)']
+    ],
+    sampleCols: ['course_key', 'course_name', 'department', 'credits'],
+    sample: [
+      [1, 'Database Systems', 'Computing', 15],
+      [2, 'Web Development', 'Computing', 15],
+      [3, 'Data Structures', 'Computing', 20]
+    ],
+    fks: ['fact_enrollment.course_key -> dim_course.course_key']
+  },
+  dim_course_snow: {
+    key: 'dim_course', role: 'DIMENSION',
+    describes: 'What was studied - the course (Snowflake: department normalised out).',
+    columns: [
+      ['course_key', 'SERIAL PK'],
+      ['course_id', 'INTEGER (natural key)'],
+      ['course_name', 'VARCHAR(120)'],
+      ['department_key', 'INTEGER FK -> dim_department'],
+      ['credits', 'INTEGER'],
+      ['level', 'VARCHAR(20)']
+    ],
+    sampleCols: ['course_key', 'course_name', 'department_key', 'credits'],
+    sample: [
+      [1, 'Database Systems', 1, 15],
+      [2, 'Web Development', 1, 15],
+      [3, 'Data Structures', 1, 20]
+    ],
+    fks: [
+      'fact_enrollment.course_key -> dim_course.course_key',
+      'dim_course.department_key -> dim_department.department_key'
+    ]
+  },
+  dim_department: {
+    role: 'DIMENSION (snowflake extension)',
+    describes: 'The academic department a course belongs to - split out of dim_course in Snowflake mode.',
+    columns: [
+      ['department_key', 'SERIAL PK'],
+      ['department_name', 'VARCHAR(80)']
+    ],
+    sampleCols: ['department_key', 'department_name'],
+    sample: [
+      [1, 'Computing'],
+      [2, 'Business']
+    ],
+    fks: ['dim_course.department_key -> dim_department.department_key']
+  }
+};
+
+// ---- Technical accuracy check (verified before wiring the UI) ----
+// Query: enrollments per department.
+// STAR:      SELECT dc.department, COUNT(*) FROM fact_enrollment fe
+//            JOIN dim_course dc ON fe.course_key = dc.course_key
+//            GROUP BY dc.department;                        -> 1 JOIN clause (2 tables)
+// SNOWFLAKE: SELECT dd.department_name, COUNT(*) FROM fact_enrollment fe
+//            JOIN dim_course dc ON fe.course_key = dc.course_key
+//            JOIN dim_department dd ON dc.department_key = dd.department_key
+//            GROUP BY dd.department_name;                   -> 2 JOIN clauses (3 tables)
+// Readout below counts JOIN clauses (the number of hops a query planner executes),
+// which is the technically precise measure - not merely the count of tables touched.
+const JOIN_COUNTS = { star: 1, snow: 2 };
+
+// ---------- SVG layout ----------
+const svg = document.getElementById('schema');
+const NS = 'http://www.w3.org/2000/svg';
+let mode = 'star'; // 'star' | 'snow'
+let selectedKey = null;
+
+const POS = {
+  fact_enrollment: { x: 270, y: 175, w: 100, h: 60, shape: 'fact' },
+  dim_student:     { x: 70,  y: 55,  w: 120, h: 50, shape: 'dim' },
+  dim_date:        { x: 440, y: 55,  w: 120, h: 50, shape: 'dim' },
+  dim_course:      { x: 70,  y: 300, w: 120, h: 50, shape: 'dim' },
+  dim_department:  { x: 440, y: 300, w: 130, h: 50, shape: 'dim' }
+};
+
+function el(tag, attrs) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+
+function centerOf(p) { return { x: p.x + p.w / 2, y: p.y + p.h / 2 }; }
+
+function render() {
+  svg.innerHTML = '';
+  const fact = POS.fact_enrollment;
+  const fc = centerOf(fact);
+
+  // links: fact -> dim_student, dim_date, dim_course
+  ['dim_student', 'dim_date', 'dim_course'].forEach(k => {
+    const p = POS[k]; const c = centerOf(p);
+    const line = el('line', { x1: fc.x, y1: fc.y, x2: c.x, y2: c.y, class: 'link' });
+    svg.appendChild(line);
+    const fkKey = k === 'dim_student' ? 'student_key' : k === 'dim_date' ? 'date_key' : 'course_key';
+    const mx = (fc.x + c.x) / 2, my = (fc.y + c.y) / 2;
+    const label = el('text', { x: mx, y: my - 6, class: 'fk-label', 'text-anchor': 'middle' });
+    label.textContent = fkKey;
+    svg.appendChild(label);
+  });
+
+  // snowflake hop: dim_course -> dim_department
+  if (mode === 'snow') {
+    const c1 = centerOf(POS.dim_course), c2 = centerOf(POS.dim_department);
+    const line = el('line', { x1: c1.x, y1: c1.y, x2: c2.x, y2: c2.y, class: 'link snow' });
+    svg.appendChild(line);
+    const mx = (c1.x + c2.x) / 2, my = (c1.y + c2.y) / 2;
+    const label = el('text', { x: mx, y: my - 6, class: 'fk-label', 'text-anchor': 'middle' });
+    label.textContent = 'department_key';
+    svg.appendChild(label);
+  }
+
+  // nodes
+  const nodeDefs = [
+    { key: 'fact_enrollment', label: 'fact_enrollment', fill: 'var(--accent)', textColor: '#fff' },
+    { key: 'dim_student', label: 'dim_student', fill: 'var(--panel)', textColor: 'var(--text)' },
+    { key: 'dim_date', label: 'dim_date', fill: 'var(--panel)', textColor: 'var(--text)' },
+    { key: 'dim_course', label: 'dim_course', fill: 'var(--panel)', textColor: 'var(--text)' }
+  ];
+  if (mode === 'snow') {
+    nodeDefs.push({ key: 'dim_department', label: 'dim_department', fill: '#EAD9BE', textColor: 'var(--text)' });
+  }
+
+  nodeDefs.forEach(def => {
+    const p = POS[def.key];
+    const g = el('g', { class: 'node' + (selectedKey === def.key ? ' selected' : ''), tabindex: '0', role: 'button', 'aria-label': def.label });
+    const rect = el('rect', { x: p.x, y: p.y, width: p.w, height: p.h, rx: 8, fill: def.fill, stroke: 'none' });
+    g.appendChild(rect);
+    const text = el('text', { x: p.x + p.w / 2, y: p.y + p.h / 2 + 5, 'text-anchor': 'middle', fill: def.textColor, 'font-size': '13', 'font-weight': '700' });
+    text.textContent = def.label;
+    g.appendChild(text);
+    g.addEventListener('click', () => selectNode(def.key));
+    g.addEventListener('keypress', (e) => { if (e.key === 'Enter' || e.key === ' ') selectNode(def.key); });
+    svg.appendChild(g);
+  });
+}
+
+function selectNode(key) {
+  selectedKey = key;
+  render();
+  const dataKey = key === 'dim_course' ? (mode === 'star' ? 'dim_course_star' : 'dim_course_snow') : key;
+  const d = TABLES[dataKey];
+  const panel = document.getElementById('panel');
+
+  let html = '';
+  const badgeClass = d.role.indexOf('FACT') === 0 ? 'fact' : 'dim';
+  html += `<span class="role-badge ${badgeClass}">${d.role}</span>`;
+  html += `<h2>${key}</h2>`;
+  if (d.grain) {
+    html += `<div class="grain-line"><strong>Grain:</strong> ${d.grain}</div>`;
+  } else if (d.describes) {
+    html += `<div class="grain-line"><strong>Describes:</strong> ${d.describes}</div>`;
+  }
+  html += `<div class="col-title">Columns</div>`;
+  html += `<table><tr><th>column</th><th>type</th></tr>`;
+  d.columns.forEach(c => { html += `<tr><td>${c[0]}</td><td class="col-type">${c[1]}</td></tr>`; });
+  html += `</table>`;
+  html += `<div class="sample-title">Sample rows</div>`;
+  html += `<table><tr>${d.sampleCols.map(c => `<th>${c}</th>`).join('')}</tr>`;
+  d.sample.forEach(row => { html += `<tr>${row.map(v => `<td>${v}</td>`).join('')}</tr>`; });
+  html += `</table>`;
+  html += `<div class="fk-title">Foreign key relationship${d.fks.length > 1 ? 's' : ''}</div>`;
+  d.fks.forEach(fk => { html += `<div class="fk-line">${fk}</div>`; });
+
+  panel.innerHTML = html;
+}
+
+function updateReadout() {
+  const readout = document.getElementById('joinReadout');
+  const labelStar = document.getElementById('labelStar');
+  const labelSnow = document.getElementById('labelSnow');
+  if (mode === 'star') {
+    readout.textContent = JOIN_COUNTS.star + ' join\u00A0\u00A0(fact_enrollment \u2192 dim_course)';
+    readout.className = 'joins star';
+    labelStar.className = 'toggle-label active-star';
+    labelSnow.className = 'toggle-label';
+  } else {
+    readout.textContent = JOIN_COUNTS.snow + ' joins\u00A0\u00A0(fact_enrollment \u2192 dim_course \u2192 dim_department)';
+    readout.className = 'joins snow';
+    labelSnow.className = 'toggle-label active-snow';
+    labelStar.className = 'toggle-label';
+  }
+}
+
+const modeSwitch = document.getElementById('modeSwitch');
+modeSwitch.addEventListener('click', () => {
+  mode = mode === 'star' ? 'snow' : 'star';
+  modeSwitch.setAttribute('aria-checked', mode === 'snow' ? 'true' : 'false');
+  updateReadout();
+  render();
+  if (selectedKey) selectNode(selectedKey);
+});
+
+updateReadout();
+render();
+</script>
+</body>
+</html>
