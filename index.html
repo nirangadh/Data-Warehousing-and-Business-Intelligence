@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visual Aids - Data Warehousing and Business Intelligence</title>
+<meta name="description" content="Interactive visual aids for the Data Warehousing and Business Intelligence module at NIBM, in association with Coventry University.">
+<style>
+  :root{
+    --brown:#7A5230;
+    --orange:#EB5600;
+    --cream:#F5EDE0;
+    --tan:#C4A882;
+    --sand:#F2E6D0;
+    --ink:#1A1A1A;
+    --grey:#595959;
+    --line:#DCCFBB;
+    --serif:Georgia,"Times New Roman",serif;
+    --sans:"Segoe UI",system-ui,-apple-system,"Helvetica Neue",sans-serif;
+    --mono:Consolas,"DejaVu Sans Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:#fff;color:var(--ink);
+    font-family:var(--sans);font-size:17px;line-height:1.6;
+  }
+  a{color:var(--brown)}
+  a:focus-visible,summary:focus-visible{outline:3px solid var(--orange);outline-offset:3px}
+
+  .band{background:var(--cream);border-bottom:1px solid var(--line)}
+  .wrap{max-width:860px;margin:0 auto;padding:0 24px}
+
+  header .wrap{padding-top:44px;padding-bottom:38px}
+  .eyebrow{
+    font-size:12px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--brown);font-weight:700;margin:0 0 14px
+  }
+  h1{
+    font-family:var(--serif);font-weight:700;
+    font-size:clamp(30px,5.4vw,46px);line-height:1.1;letter-spacing:-.015em;
+    margin:0 0 18px;max-width:16ch
+  }
+  .bars{display:flex;gap:6px;margin-bottom:18px}
+  .bars i{display:block;height:7px}
+  .bars i:first-child{width:56px;background:var(--brown)}
+  .bars i:last-child{width:28px;background:var(--orange)}
+  .lede{margin:0;max-width:56ch;color:var(--grey)}
+  .lede strong{color:var(--ink)}
+
+  main .wrap{padding-top:40px;padding-bottom:8px}
+  h2{
+    font-family:var(--serif);font-size:24px;font-weight:700;
+    margin:0 0 6px;letter-spacing:-.01em
+  }
+  .sub{margin:0 0 30px;color:var(--grey);max-width:58ch}
+
+  /* The spine: each day hands its output to the next day. */
+  ol.spine{list-style:none;margin:0;padding:0;position:relative}
+  ol.spine::before{
+    content:"";position:absolute;left:15px;top:12px;bottom:34px;
+    width:2px;background:var(--tan)
+  }
+  li.stop{position:relative;padding:0 0 26px 52px}
+  .dot{
+    position:absolute;left:8px;top:6px;width:16px;height:16px;border-radius:50%;
+    background:#fff;border:2px solid var(--tan)
+  }
+  li.live .dot{background:var(--orange);border-color:var(--orange)}
+  .day{
+    font-family:var(--mono);font-size:12px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--brown);font-weight:700
+  }
+  li.pending .day{color:var(--grey)}
+  h3{font-size:19px;margin:2px 0 4px;font-weight:600}
+  h3 a{text-decoration:none;border-bottom:2px solid var(--sand)}
+  h3 a:hover{border-bottom-color:var(--orange)}
+  li.pending h3{color:var(--grey);font-weight:500}
+  .what{margin:0;color:var(--grey);font-size:15.5px;max-width:52ch}
+  .hands{
+    display:inline-block;margin-top:8px;padding:3px 9px;
+    background:var(--sand);border-left:3px solid var(--brown);
+    font-size:13.5px;color:var(--ink)
+  }
+  .hands b{font-weight:600}
+  .hands code{font-family:var(--mono);font-size:12.5px}
+  .soon{
+    display:inline-block;margin-top:6px;font-size:13px;color:var(--grey);
+    border:1px dashed var(--line);padding:2px 8px
+  }
+
+  .note{background:var(--sand);padding:20px 24px;margin:12px 0 40px;border-left:4px solid var(--brown)}
+  .note p{margin:0 0 8px}
+  .note p:last-child{margin:0}
+  .note h2{font-size:19px;margin-bottom:8px}
+
+  footer{border-top:1px solid var(--line);margin-top:8px}
+  footer .wrap{padding:24px;font-size:14px;color:var(--grey)}
+  footer p{margin:0 0 4px}
+
+  @media (max-width:560px){
+    body{font-size:16px}
+    li.stop{padding-left:44px}
+    .what{max-width:none}
+  }
+  @media (prefers-reduced-motion:no-preference){
+    h3 a{transition:border-color .15s ease}
+  }
+</style>
+</head>
+<body>
+
+<header class="band">
+  <div class="wrap">
+    <p class="eyebrow">NIBM &middot; Coventry University</p>
+    <h1>Data Warehousing and Business Intelligence</h1>
+    <div class="bars"><i></i><i></i></div>
+    <p class="lede">Interactive visual aids, one per teaching day. Each one shows a single idea moving, so you can watch what the slides describe. <strong>Open them beside the student notes for that day.</strong></p>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <h2>One warehouse, built across the week</h2>
+    <p class="sub">Each day hands its result to the next day. That is why a missed day matters. It is also why the correct output of every day is published in the repository for you to pick up.</p>
+
+    <ol class="spine">
+
+      <li class="stop live">
+        <span class="dot" aria-hidden="true"></span>
+        <p class="day">Day 1</p>
+        <h3><a href="docs/d1_html_oltp_vs_dw.html">Same question, two systems</a></h3>
+        <p class="what">Run one business question against the live database and against a warehouse table. Watch the difference in effort and speed.</p>
+        <p class="hands"><b>Hands on:</b> three questions the warehouse must answer</p>
+      </li>
+
+      <li class="stop live">
+        <span class="dot" aria-hidden="true"></span>
+        <p class="day">Day 2</p>
+        <h3><a href="docs/d2_html_star_schema.html">Star and snowflake explorer</a></h3>
+        <p class="what">Switch a schema between star and snowflake. Count the joins each shape costs to answer the same question.</p>
+        <p class="hands"><b>Hands on:</b> a working star schema</p>
+      </li>
+
+      <li class="stop pending">
+        <span class="dot" aria-hidden="true"></span>
+        <p class="day">Day 3</p>
+        <h3>ETL pipeline animator</h3>
+        <p class="what">Follow rows through cleansing and integration. See how one duplicate key silently multiplies rows on a join.</p>
+        <p class="soon">Not yet published</p>
+      </li>
+
+      <li class="stop pending">
+        <span class="dot" aria-hidden="true"></span>
+        <p class="day">Day 4</p>
+        <h3>OLAP operations explorer</h3>
+        <p class="what">Slice, dice, drill down, roll up and pivot the loaded warehouse. See the query shape behind each one.</p>
+        <p class="soon">Not yet published</p>
+      </li>
+
+      <li class="stop pending">
+        <span class="dot" aria-hidden="true"></span>
+        <p class="day">Day 5</p>
+        <h3>Grouping sets, cube and rollup</h3>
+        <p class="what">Ask for several levels of aggregation in one pass. Check that every subtotal agrees with its detail rows.</p>
+        <p class="soon">Not yet published</p>
+      </li>
+
+      <li class="stop pending">
+        <span class="dot" aria-hidden="true"></span>
+        <p class="day">Day 6</p>
+        <h3>Choosing the right chart</h3>
+        <p class="what">Put the same five numbers into different chart types. See which ones let a reader rank them correctly.</p>
+        <p class="soon">Not yet published</p>
+      </li>
+
+      <li class="stop pending">
+        <span class="dot" aria-hidden="true"></span>
+        <p class="day">Day 7</p>
+        <h3>Capstone walkthrough</h3>
+        <p class="what">The whole pipeline again, on a domain you have not seen, from raw files to a dashboard.</p>
+        <p class="soon">Not yet published</p>
+      </li>
+
+    </ol>
+
+    <div class="note">
+      <h2>Working without internet</h2>
+      <p>Every aid on this page is a single file that runs in your browser. Nothing is loaded from the internet while it runs.</p>
+      <p>To keep a copy: open the page, press <b>Ctrl and S</b>, and save it to your own folder. It will work later with the network switched off.</p>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Slides, student notes, lab data and SQL scripts are in the repository: <a href="https://github.com/nirangadh/Data-Warehousing-and-Business-Intelligence">github.com/nirangadh/Data-Warehousing-and-Business-Intelligence</a></p>
+    <p>New words for each day are collected in the <a href="https://github.com/nirangadh/Data-Warehousing-and-Business-Intelligence/blob/main/glossary.md">glossary</a>.</p>
+    <p>BSc (Hons) Computing Level 4 and Higher National Diploma in Software Engineering.</p>
+    <p>Niranga Dharmaratna &middot; niranga@nibm.lk &middot; Version 1.0 &middot; 23 August 2026</p>
+  </div>
+</footer>
+
+</body>
+</html>
